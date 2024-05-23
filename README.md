@@ -2,7 +2,7 @@
 Slides, notes, and materials for the workshop
 
 - RSVP link: https://lu.ma/1wu5ppl5
-- Host: @chiphuyen's [Discord community](https://discord.gg/C8duCmvngk)
+- Host: [@chiphuyen](https://github.com/chiphuyen)'s [Discord community](https://discord.gg/C8duCmvngk)
 - [YouTube's recording](https://www.youtube.com/watch?v=v_q2JTIqE20)
 
 ## Pre-event note
