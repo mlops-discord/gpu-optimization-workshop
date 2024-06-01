@@ -6,17 +6,17 @@ _Thanks Ajinkya Tejankar, Mohsin Iqbal, Sujit Ahirrao, and Krishna Gupta for the
     2. Eager execution allows easy debugging but this trades off performance
     3. Models getting converged to eager may not be the best performance
 2. Pointwise ops
-    4. Every element assigned to a single thread that run in parallel
+    1. Every element assigned to a single thread that run in parallel
 3. Memory hierarchy
-    5. Load data in shared memory and apply relu
-    6. Done differently in Triton
+    1. Load data in shared memory and apply relu
+    2. Done differently in Triton
 4. Eager execution can lead to unnecessary memory accesses if kernels are repeated
 5. GPU mem bandwidth is the bottleneck not FLOPs
 6. Operations / no of bytes accessed = arithmetic intensity
-7. Repeated calls to a kernel can be fused together - torch.compile (generates Triton) - PyTorch 2 paper for more information
+7. Repeated calls to a kernel can be fused together - `torch.compile` (generates Triton) (see PyTorch 2 paper for more information).
 8. FP32 to FP16 or BF16 improves the perf significantly
-9. torch.set_float32_matmul_precision(‘high’) => use tensor cores => talk by Nvidia about tensor cores on CUDA MODE
-10. Most of the time may be spent on figuring out which GPU kernel to use because 1.a above
+9. `torch.set_float32_matmul_precision('high')` => use tensor cores => talk by Nvidia about tensor cores on CUDA MODE
+10. Most of the time may be spent on figuring out which GPU kernel to use because 1.1 above
 11. CUDA kernels are asyc so queue them up -> CUDA graphs “reduce-overhead” in torch.compile
 12. Quantization helps compute bound but also mem bound kernels as it reduces the number of bytes accessed in the arithmetic intensity calculation
 13. GPT fast - weight only quantization
@@ -38,12 +38,14 @@ _Thanks Ajinkya Tejankar, Mohsin Iqbal, Sujit Ahirrao, and Krishna Gupta for the
 29. How does PyTorch treat GPUs other than Nvidia’s? Triton provides backends that work on Intel, AMD GPUs so PyTorch just generates Triton. Hierarchical IR and Code gen.
 30. What do you think about 1 bit quantization? Eval does not scale. Bit packing can help.
 31. Common pitfalls of running GPUs?
-    7. Eager - Profile first to figure out the real bottlenecks
-    8. Compile - Enable first 3 things on 27 point
+    1. Eager - Profile first to figure out the real bottlenecks
+    2. Compile - Enable first 3 things on 27 point
 
 
 ### Relevant resources
-* CUDA Programming model basics: [https://docs.nvidia.com/cuda/pdf/CUDA_C_Programming_Guide.pdf#4](https://docs.nvidia.com/cuda/pdf/CUDA_C_Programming_Guide.pdf#4)
+* CUDA Programming model basics:
+
+    [https://docs.nvidia.com/cuda/pdf/CUDA_C_Programming_Guide.pdf#4](https://docs.nvidia.com/cuda/pdf/CUDA_C_Programming_Guide.pdf#4)
 
     [https://docs.nvidia.com/cuda/pdf/CUDA_C_Programming_Guide.pdf#a4](https://docs.nvidia.com/cuda/pdf/CUDA_C_Programming_Guide.pdf#a4)
 
@@ -57,8 +59,6 @@ _Thanks Ajinkya Tejankar, Mohsin Iqbal, Sujit Ahirrao, and Krishna Gupta for the
 
 ## LLM Serving optimization
 
-
-
 1. Focusing on server-based systems not edge-end user latencies are important
 2. Multi-functional accurate models are large - deployment and optimization is a challenge
 3. Many models, very big models, new operators (optimization becomes a moving target)
@@ -70,39 +70,39 @@ _Thanks Ajinkya Tejankar, Mohsin Iqbal, Sujit Ahirrao, and Krishna Gupta for the
         1. Lesser memory, higher throughput comms between GPUs, faster computation (all-round win)
     2. Post-training quantization is the most common
     3. TensorRT model optimizer offers a bunch of techniques
-        2. PTQ (post-training quantization) and QAT (quantization-aware training)
-        3. SmoothQuant and INT4 AWQ don’t lead to too much drop in acc (MMLU)
+        1. PTQ (post-training quantization) and QAT (quantization-aware training)
+        2. SmoothQuant and INT4 AWQ don’t lead to too much drop in acc (MMLU)
 8. LLM request has two phases
-    4. Prefill: process the prompt, generate the first token, and init the kv cache. Called only once for a request. Lots of parallel operations across tokens.
-    5. Generate: starts from prior state (kv cache) and generates the next token, updating the kv cache. Called in a loop for each request. Lot of memory bound operations.
-    6. Attention is complex - features like GQA and Speculative Decoding increase math:data movement ratio (arithmetic intensity)
-    7. TRT-LLMs fastest implementations use hand tuned custom cuda kernels
+    1. Prefill: process the prompt, generate the first token, and init the kv cache. Called only once for a request. Lots of parallel operations across tokens.
+    2. Generate: starts from prior state (kv cache) and generates the next token, updating the kv cache. Called in a loop for each request. Lot of memory bound operations.
+    3. Attention is complex - features like GQA and Speculative Decoding increase math:data movement ratio (arithmetic intensity)
+    4. TRT-LLMs fastest implementations use hand tuned custom cuda kernels
 9. Traditional Request Scheduling (static batching)
-    8. Accumulate, batch, forward
-    9. Request as an atomic operation is great for fixed length inputs however for tasks like completion where outputs differ in length this is not great. (image vs. chat)
-    10. Largest completion in a batch can stall the smallest completion. Padding also wastes computation.
+    1. Accumulate, batch, forward
+    2. Request as an atomic operation is great for fixed length inputs however for tasks like completion where outputs differ in length this is not great. (image vs. chat)
+    3. Largest completion in a batch can stall the smallest completion. Padding also wastes computation.
 10. LLM Request Properties
-    11. Multiple forward passes and the number is unknown a priori
-    12. Online setting, request arrival time is priori
-    13. In flight batching
-        4. On EOS, Max tokens reached, stop phrase -> send response and evict
-        5. Process new work - next iteration of LLM
+    1. Multiple forward passes and the number is unknown a priori
+    2. Online setting, request arrival time is priori
+    3. In flight batching
+        1. On EOS, Max tokens reached, stop phrase -> send response and evict
+        2. Process new work - next iteration of LLM
             1. Prompt phase goes to prefill
             2. Prefill goes to generate
             3. Generate keeps generating
-        6. Transformer ops
-            4. Token parallel - Matmul, LayerNorm
-            5. Sequence parallel - MHA
-            6. Tokens across above two types are concatenated in in-flight batching to improve memory bound (makes it more compute intensive)
+        3. Transformer ops
+            1. Token parallel - Matmul, LayerNorm
+            2. Sequence parallel - MHA
+            3. Tokens across above two types are concatenated in in-flight batching to improve memory bound (makes it more compute intensive)
     14. Paged KV Cache
-        7. Contiguous KV Cache leads to wasted allocation of memory since all KV cache memory is contiguous
-        8. Instead think of memory as a linked list of pages - reduces memory unused memory - lazy memory allocation - increases complexity of attention kernel
-        9. Allows sharing of KV cache between requests! E.g. system prompt kv cache blocks are part of the linked list of different requests!
+        1. Contiguous KV Cache leads to wasted allocation of memory since all KV cache memory is contiguous
+        2. Instead think of memory as a linked list of pages - reduces memory unused memory - lazy memory allocation - increases complexity of attention kernel
+        3. Allows sharing of KV cache between requests! E.g. system prompt kv cache blocks are part of the linked list of different requests!
     15. Speculative Decoding
-        10. Instead of generating a single token as in regular autoregressive generation, generate many tokens
-        11. Evaluate if draft tokens are valid in the same time as a single token is generated
-        12. Speculates that speculative decoding will be used everywhere ;)
-        13. Turns latency problem into throughput problem where GPUs are great
+        1. Instead of generating a single token as in regular autoregressive generation, generate many tokens
+        2. Evaluate if draft tokens are valid in the same time as a single token is generated
+        3. Speculates that speculative decoding will be used everywhere ;)
+        4. Turns latency problem into throughput problem where GPUs are great
     16. Time to first token vs time between token. Which is important? Time between since time to first is easily optimized.
     17. Online vs batch inference. Which is common? Online is important, but the idea is to turn online into batch inference.
     18. Any specific techniques for streaming mode? Not much. Stream out tokens as they are generated. Since everything is async anyway.
@@ -120,8 +120,7 @@ _Thanks Ajinkya Tejankar, Mohsin Iqbal, Sujit Ahirrao, and Krishna Gupta for the
 * [Efficient Memory Management for Large Language Model Serving with PagedAttention](https://arxiv.org/abs/2309.06180)
 
 
-## Block-based optimization with Triton [[Slides](https://github.com/mlops-discord/gpu-optimization-workshop/blob/main/slides_3_Triton.pdf)]
-
+## Block-based optimization with Triton
 
 1. CUDA - all sorts of things can be done on GPUs but since it allows anything to be done it creates problems and hampers productivity.
     1. First few months of support are okay
@@ -133,29 +132,28 @@ _Thanks Ajinkya Tejankar, Mohsin Iqbal, Sujit Ahirrao, and Krishna Gupta for the
         3. Code gen from graph compilers is a very difficult problem - this gives rise FlashAttention like custom CUDA kernels
         4. Simplicity at the cost of flexibility
 2. Triton - more low level than graph compilers but much easier to work with than CUDA
-    5. Can write algorithms out of scope of graph compilers - trees, linked lists, radix sort
-    6. Code still remains readable/modifiable by researchers
-    7. Performance is portable across different vendors
-    8. Less expressive than CUDA not as fast
-3. Triton Machine Model
-    9. DRAM, L1 and L2 cache, Cores, Memory Controllers - Von Neumann Basic
+    1. Can write algorithms out of scope of graph compilers - trees, linked lists, radix sort
+    2. Code still remains readable/modifiable by researchers
+    3. Performance is portable across different vendors
+    4. Less expressive than CUDA not as fast
+3. Triton Machine Model: DRAM, L1 and L2 cache, Cores, Memory Controllers - Von Neumann Basic
 4. Programming Model	
-    10. Tensors are defined in SRAM and modified using torch like operators
-    11. Embedded in Python and Just-in-Time compiled
-    12. Tensor of pointers!
-    13. Powers of 2 - shapes of tensors!?
+    1. Tensors are defined in SRAM and modified using torch like operators
+    2. Embedded in Python and Just-in-Time compiled
+    3. Tensor of pointers!
+    4. Powers of 2 - shapes of tensors!?
 5. Vector addition
-    14. Each program gets a different slice to the input with tl.program_id
+    1. Each program gets a different slice to the input with tl.program_id
 6. Softmax
-    15. Entirely fused kernels in less than 10 lines
-    16. Load the data only once unlike PyTorch eager mode
+    1. Entirely fused kernels in less than 10 lines
+    2. Load the data only once unlike PyTorch eager mode
 7. Why blocked program representation?
-    17. Peephole optimization
-    18. SRAM allocation
-    19. Automatic vectorization - Need to issue big enough loads to keep the memory bandwidth busy
-    20. Compiler allocates shared mem in addition to registers
-    21. Lot of value in researchers doing kernel developement!
-    22. Technical debt manageable
+    1. Peephole optimization
+    2. SRAM allocation
+    3. Automatic vectorization - Need to issue big enough loads to keep the memory bandwidth busy
+    4. Compiler allocates shared mem in addition to registers
+    5. Lot of value in researchers doing kernel developement!
+    6. Technical debt manageable
 8. Challenges of building kernels at OpenAI scale? Reliability vs agility of the code base
 9. Tricks for single GPU? Consumer GPUs have restriction on tensor cores. Go out of your way to use 16bit tensor cores. Not a priority of OpenAI, but TinyGrad focuses on it.
 10. Model performance can change after optimizations? Kernel output shouldn’t change with reference non-optimized implementation. Power of 2 inputs.
